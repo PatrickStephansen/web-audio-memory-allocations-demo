@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Memory allocation issue</title>
+  </head>
+  <body>
+    <h1>Web Audio API - unexpectedly frequent memory allocations</h1>
+    <p>
+      Demo of memory allocation issue with custom AudioWorkletProcessor. Even a
+      do nothing example node causes constant heap allocation. Minor garbage
+      collection clears 1MB every 5-10 seconds on my machine.
+    </p>
+    <h2>To reproduce:</h2>
+    <p>
+      Click the button to start processing, then go to the performance tab in
+      dev tools and record for at least 20 seconds. Under the event log for the
+      AudioWorklet thread, search for "GC". There will be more than there should
+      be considering the processing being done (effectively none).
+    </p>
+    <h2>So what?</h2>
+    <p>
+      These memory allocations stack up in real audio applications that make use
+      of custom AudioWorkletProcessor implementations, and more garbage
+      collection means more glitches in the audio.
+    </p>
+    <p>
+      <a href="https://github.com/PatrickStephansen/reactive-synth"
+        >My application</a
+      >
+      is badly affected. Around October 2019, most of the presets were workable
+      on my phone. Since Chrome 79 (maybe 80?), none of them are. Most of them
+      glitch regularly even on powerful desktop machines.
+    </p>
+    <button type="button" id="force-start">Start</button>
+    <div id="error" style="color: red"></div>
+    <div id="out"></div>
+    <script>
+      let context = null;
+      const instantiateDemo = () =>
+        Promise.resolve((context = new AudioContext()))
+          .then(() => context.resume())
+          .then(() =>
+            context.audioWorklet.addModule("/worklets/demo-audio-processor.js")
+          )
+          .then(() => {
+            const demoNode = new AudioWorkletNode(
+              context,
+              "demo-audio-processor",
+              {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                channelCount: 1,
+                channelCountMode: "explicit",
+                outputChannelCount: [1],
+                channelInterpretation: "speakers"
+              }
+            );
+            demoNode.connect(context.destination);
+          })
+          .then(() => {
+            out.innerText = "Running. Ready for perfomance testing.";
+          })
+          .catch(e =>
+            error.innerText.error(
+              "Problem starting audio context. Most likely cause the demo-audio-processor.js file isn't accessible.",
+              e
+            )
+          );
+      document
+        .getElementById("force-start")
+        .addEventListener("click", instantiateDemo);
+    </script>
+  </body>
+</html>
