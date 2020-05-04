@@ -4,7 +4,7 @@
   "description": "demo of issue with unexpected memory allocations on audio thread when creating a custom AudioWorkletProcessor",
   "main": "index.html",
   "scripts": {
-    "start": "ws -v"
+    "start": "ws -v --rewrite '/web-audio-memory-allocations-demo -> /'"
   },
   "author": {
     "name": "Patrick Stephansen"

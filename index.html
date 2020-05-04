@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <base href="/web-audio-memory-allocations-demo/" />
     <title>Memory allocation issue</title>
     <style>
       .scenario {
@@ -15,8 +16,9 @@
     <h1>Web Audio API - unexpectedly frequent memory allocations</h1>
     <p>
       Demo of memory allocation issue with custom AudioWorkletProcessor. Even a
-      do nothing example node causes constant heap allocation. Minor garbage
-      collection clears 1MB every 5-10 seconds on my machine.
+      do nothing example node causes constant heap allocation (silent case
+      below). Minor garbage collection clears 1MB every 1-15 seconds on my
+      machine depending on the number of inputs chosen.
     </p>
     <h2>To reproduce:</h2>
     <p>
@@ -26,6 +28,12 @@
       thread, search for "GC". There will be more than there should be
       considering the processing logic only works with number variables, which
       should be on the stack.
+    </p>
+    <p>
+      The triangle scenario allows multiple non-silent, but trivial nodes to be
+      added in parallel. The gain option allows the volume to be turned down so
+      there's no mistaking clipping for glitching. On my machine, it reliably
+      glitches with 20 nodes
     </p>
     <div class="scenario">
       <label for="silent-case-inputs">Silent case inputs</label>
@@ -85,13 +93,13 @@
             document.getElementById("out").innerText =
               "Running. Ready for perfomance testing.";
           })
-          .catch(
-            e =>
-              (document.getElementById(
-                "error"
-              ).innerText = `Problem starting audio context. Most likely cause the demo-audio-processor.js file isn't accessible.
-                ${e}`)
-          );
+          .catch(e => {
+            document.getElementById(
+              "error"
+            ).innerText = `Problem starting audio context. Most likely cause the demo-audio-processor.js file isn't accessible.
+                ${e}`;
+            throw e;
+          });
       addTriangle = () =>
         Promise.resolve()
           .then(() => {
@@ -123,12 +131,12 @@
               "out"
             ).innerText = `Triangles: ${++triangles}`;
           })
-          .catch(
-            e =>
-              (document.getElementById(
-                "error"
-              ).innerText = `Error adding triangle ${e}`)
-          );
+          .catch(e => {
+            document.getElementById(
+              "error"
+            ).innerText = `Error adding triangle ${e}`;
+            throw e;
+          });
       const setGain = ({ target: { value } }) => {
         masterGain.gain.setValueAtTime(value, context.currentTime + 0.001);
       };
