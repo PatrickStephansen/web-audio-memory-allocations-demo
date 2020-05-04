@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>Memory allocation issue</title>
+    <style>
+      .scenario {
+        margin: 5px;
+      }
+    </style>
   </head>
   <body>
     <h1>Web Audio API - unexpectedly frequent memory allocations</h1>
@@ -15,32 +20,46 @@
     </p>
     <h2>To reproduce:</h2>
     <p>
-      Click the button to start processing, then go to the performance tab in
-      dev tools and record for at least 20 seconds. Under the event log for the
-      AudioWorklet thread, search for "GC". There will be more than there should
-      be considering the processing being done (effectively none).
+      Click one of the buttons (triangle button can be clicked multiple times)
+      to start processing, then go to the performance tab in dev tools and
+      record for at least 20 seconds. Under the event log for the AudioWorklet
+      thread, search for "GC". There will be more than there should be
+      considering the processing logic only works with number variables, which
+      should be on the stack.
     </p>
-    <h2>So what?</h2>
-    <p>
-      These memory allocations stack up in real audio applications that make use
-      of custom AudioWorkletProcessor implementations, and more garbage
-      collection means more glitches in the audio.
-    </p>
-    <p>
-      <a href="https://github.com/PatrickStephansen/reactive-synth"
-        >My application</a
+    <div class="scenario">
+      <label for="silent-case-inputs">Silent case inputs</label>
+      <input type="number" step="1" id="silent-case-inputs" value="0" />
+      <button
+        type="button"
+        id="force-start"
+        title="GC frequency scales with number of inputs"
       >
-      is badly affected. Around October 2019, most of the presets were workable
-      on my phone. Since Chrome 79 (maybe 80?), none of them are. Most of them
-      glitch regularly even on powerful desktop machines.
-    </p>
-    <button type="button" id="force-start">Start</button>
-    <div id="error" style="color: red"></div>
-    <div id="out"></div>
+        Start Silent case
+      </button>
+    </div>
+    <div class="scenario">
+      <label for="tri-gain">Triangle gain (should be 1 or less)</label>
+      <input type="number" id="tri-gain" step="0.01" value="0.1" />
+      <button type="button" id="add-tri">Add custom triangle</button>
+    </div>
+    <div class="output">
+      <div id="error" style="color: red"></div>
+      <div id="out"></div>
+    </div>
     <script>
       let context = null;
+      let masterGain = null;
+      let triangles = 0;
       const instantiateDemo = () =>
-        Promise.resolve((context = new AudioContext()))
+        Promise.resolve()
+          .then(() => {
+            if (context != null) {
+              context.close();
+            }
+            context = new AudioContext();
+            masterGain = null;
+          })
           .then(() => context.resume())
           .then(() =>
             context.audioWorklet.addModule("/worklets/demo-audio-processor.js")
@@ -50,7 +69,8 @@
               context,
               "demo-audio-processor",
               {
-                numberOfInputs: 1,
+                numberOfInputs: +document.getElementById("silent-case-inputs")
+                  .value,
                 numberOfOutputs: 1,
                 channelCount: 1,
                 channelCountMode: "explicit",
@@ -58,20 +78,65 @@
                 channelInterpretation: "speakers"
               }
             );
+            triangles = 0;
             demoNode.connect(context.destination);
           })
           .then(() => {
-            out.innerText = "Running. Ready for perfomance testing.";
+            document.getElementById("out").innerText =
+              "Running. Ready for perfomance testing.";
           })
-          .catch(e =>
-            error.innerText.error(
-              "Problem starting audio context. Most likely cause the demo-audio-processor.js file isn't accessible.",
-              e
-            )
+          .catch(
+            e =>
+              (document.getElementById(
+                "error"
+              ).innerText = `Problem starting audio context. Most likely cause the demo-audio-processor.js file isn't accessible.
+                ${e}`)
           );
+      addTriangle = () =>
+        Promise.resolve()
+          .then(() => {
+            context = context || new AudioContext();
+            masterGain = masterGain || new GainNode(context);
+            masterGain.gain.value = +document.getElementById("tri-gain").value;
+            masterGain.connect(context.destination);
+            return context.resume();
+          })
+          .then(() =>
+            context.audioWorklet.addModule("/worklets/triangle-generator.js")
+          )
+          .then(() => {
+            const triangleOscillator = new AudioWorkletNode(
+              context,
+              "triangle-demo",
+              {
+                numberOfInputs: 0,
+                numberOfOutputs: 1,
+                channelCount: 2,
+                channelCountMode: "explicit",
+                outputChannelCount: [2],
+                channelInterpretation: "speakers"
+              }
+            );
+            triangleOscillator.connect(masterGain);
+
+            document.getElementById(
+              "out"
+            ).innerText = `Triangles: ${++triangles}`;
+          })
+          .catch(
+            e =>
+              (document.getElementById(
+                "error"
+              ).innerText = `Error adding triangle ${e}`)
+          );
+      const setGain = ({ target: { value } }) => {
+        masterGain.gain.setValueAtTime(value, context.currentTime + 0.001);
+      };
       document
         .getElementById("force-start")
         .addEventListener("click", instantiateDemo);
+      document.getElementById("add-tri").addEventListener("click", addTriangle);
+      document.getElementById("tri-gain").addEventListener("input", setGain);
     </script>
   </body>
 </html>
