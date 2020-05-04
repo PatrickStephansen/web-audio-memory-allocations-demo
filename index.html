@@ -59,6 +59,8 @@
       let context = null;
       let masterGain = null;
       let triangles = 0;
+      const trimTrailingSlash = s => s.replace(/\/$/, "");
+      const baseUrl = trimTrailingSlash(location.pathname);
       const instantiateDemo = () =>
         Promise.resolve()
           .then(() => {
@@ -70,7 +72,9 @@
           })
           .then(() => context.resume())
           .then(() =>
-            context.audioWorklet.addModule("/worklets/demo-audio-processor.js")
+            context.audioWorklet.addModule(
+              `${baseUrl}/worklets/demo-audio-processor.js`
+            )
           )
           .then(() => {
             const demoNode = new AudioWorkletNode(
@@ -100,7 +104,7 @@
                 ${e}`;
             throw e;
           });
-      addTriangle = () =>
+      const addTriangle = () =>
         Promise.resolve()
           .then(() => {
             context = context || new AudioContext();
@@ -110,7 +114,9 @@
             return context.resume();
           })
           .then(() =>
-            context.audioWorklet.addModule("/worklets/triangle-generator.js")
+            context.audioWorklet.addModule(
+              `${baseUrl}/worklets/triangle-generator.js`
+            )
           )
           .then(() => {
             const triangleOscillator = new AudioWorkletNode(
